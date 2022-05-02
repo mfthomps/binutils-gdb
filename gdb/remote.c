@@ -1075,6 +1075,7 @@ static void remote_async_inferior_event_handler (gdb_client_data);
 static bool remote_read_description_p (struct target_ops *target);
 
 static void remote_console_output (const char *msg);
+static void resim_console_output (const char *msg);
 
 static void remote_btrace_reset (remote_state *rs);
 
@@ -7182,13 +7183,31 @@ remote_console_output (const char *msg)
   for (p = msg; p[0] && p[1]; p += 2)
     {
       char tb[2];
+      //gdb_printf(_("p0 is %d  p1 %d\n"), p[0], p[1]);
       char c = fromhex (p[0]) * 16 + fromhex (p[1]);
-
       tb[0] = c;
       tb[1] = 0;
       gdb_stdtarg->puts (tb);
     }
   gdb_stdtarg->flush ();
+}
+static void
+resim_console_output (const char *msg)
+{
+  const char *p;
+  char resim[4096];
+  int resim_i = 0;
+  for (p = msg; p[0] && p[1]; p += 2)
+    {
+      char c = fromhex (p[0]) * 16 + fromhex (p[1]);
+      if(c < 128){
+          resim[resim_i] = c;
+          resim_i++;
+      }
+    }
+    resim[resim_i] = 0;
+    //printf("%s", resim);
+    gdb_printf (_("%s"), resim);
 }
 
 /* Return the length of the stop reply queue.  */
@@ -11515,7 +11534,11 @@ remote_target::rcmd (const char *command, struct ui_file *outbuf)
 {
   struct remote_state *rs = get_remote_state ();
   char *p = rs->buf.data ();
-
+  bool is_monitor = false;
+  if (strncmp(command, "@cgc", strlen("@cgc")) == 0){
+      //gdb_printf("is monitor\n");
+      is_monitor = true;
+  }
   if (!rs->remote_desc)
     error (_("remote rcmd is only available after target open"));
 
@@ -11557,9 +11580,17 @@ remote_target::rcmd (const char *command, struct ui_file *outbuf)
       buf = rs->buf.data ();
       if (buf[0] == '\0')
 	error (_("Target does not support this command."));
-      if (buf[0] == 'O' && buf[1] != 'K')
+      if(buf[0] == 'T'){
+          gdb_printf(_("%s\n"), buf);
+          continue;
+      }
+      if ((buf[0] == 'O' && buf[1] != 'K'))
 	{
-	  remote_console_output (buf + 1); /* 'O' message from stub.  */
+          if(is_monitor){
+    	      resim_console_output (buf + 1); /* 'O' message from stub.  Use stdout */
+          }else{
+    	      remote_console_output (buf + 1); /* 'O' message from stub.  */
+          }
 	  continue;
 	}
       if (strcmp (buf, "OK") == 0)
@@ -11571,11 +11602,25 @@ remote_target::rcmd (const char *command, struct ui_file *outbuf)
 	}
       for (p = buf; p[0] != '\0' && p[1] != '\0'; p += 2)
 	{
+          // Simics noise breaks gdb
+          gdb_printf(_("OTHER p0 is %d  p1 %d\n"), p[0], p[1]);
+          if(p[0] == 84){
+              gdb_printf(_("was 84, buf is %s\n"),buf);
+              continue;
+          }
 	  char c = (fromhex (p[0]) << 4) + fromhex (p[1]);
-
 	  gdb_putc (c, outbuf);
 	}
       break;
+    }
+    if(is_monitor){
+        process_stratum_target *curr_target = current_inferior ()->process_target ();
+        gdb_assert (!curr_target->commit_resumed_state);
+
+        //target_dcache_invalidate ();
+        registers_changed_ptid (curr_target, inferior_ptid);
+        invalidate_target_mem_regions ();
+        all_uis_check_sync_execution_done ();
     }
 }
 

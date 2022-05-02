@@ -4285,10 +4285,18 @@ default_rcmd (struct target_ops *self, const char *command,
   error (_("\"monitor\" command not supported by this target."));
 }
 
+
 static void
 do_monitor_command (const char *cmd, int from_tty)
 {
+  //gdb_printf (_("in do_mon.\n"));
   target_rcmd (cmd, gdb_stdtarg);
+  process_stratum_target *curr_target = current_inferior ()->process_target ();
+  gdb_assert (!curr_target->commit_resumed_state);
+
+  target_dcache_invalidate ();
+  registers_changed_ptid (curr_target, inferior_ptid);
+  invalidate_target_mem_regions ();
 }
 
 /* Erases all the memory regions marked as flash.  CMD and FROM_TTY are
