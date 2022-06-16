@@ -2655,7 +2655,7 @@ remote_target::remote_notice_new_inferior (ptid_t currthread, bool executing)
 	  bool fake_pid_p = !remote_multi_process_p (rs);
 
 	  inf = remote_add_inferior (fake_pid_p,
-				     currthread.pid (), -1, 1);
+				     currthread.pid (), -1, 0);
 	}
 
       /* This is really a new thread.  Add it.  */
@@ -7195,7 +7195,9 @@ static void
 resim_console_output (const char *msg)
 {
   const char *p;
-  char resim[4096];
+  int resim_buf_size = 4096;
+  int max_index = resim_buf_size - 2;
+  char resim[resim_buf_size];
   int resim_i = 0;
   for (p = msg; p[0] && p[1]; p += 2)
     {
@@ -7203,11 +7205,18 @@ resim_console_output (const char *msg)
       if(c < 128){
           resim[resim_i] = c;
           resim_i++;
+          if(resim_i >= max_index){
+              resim[resim_i] = 0;
+              gdb_printf (_("%s"), resim);
+              resim_i = 0;
+           }
       }
     }
-    resim[resim_i] = 0;
-    //printf("%s", resim);
-    gdb_printf (_("%s"), resim);
+    if(resim_i > 0){
+        resim[resim_i] = 0;
+        //printf("%s", resim);
+        gdb_printf (_("%s"), resim);
+    }
 }
 
 /* Return the length of the stop reply queue.  */
