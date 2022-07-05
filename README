@@ -1,5 +1,17 @@
 		   README for GNU development tools
 
+** Custom gdb for use with Ghidra RESim plugins **
+Modified to write gdb monitor responses to same FD as gdb output.
+
+Dependencies:
+   texinfo
+   bison
+   flex
+   libgmp-dev
+Use --enable-targets-all 
+to build a gdb client for all architectures for use with Ghidra
+** See https://github.com/mfthomps/RESim **
+
 This directory contains various GNU compilers, assemblers, linkers, 
 debuggers, etc., plus their support routines, definitions, and documentation.
 
